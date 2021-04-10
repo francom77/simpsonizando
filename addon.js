@@ -6,14 +6,14 @@ const manifest = {
 	"version": "0.0.1",
 	"catalogs": [
 		{
-			"type": "movie",
+			"type": "series",
 			"id": "top"
 		}
 	],
+	"idPrefixes": [ "tt" ],
 	"resources": [
 		"catalog",
-		"stream",
-		"meta"
+		"stream"
 	],
 	"types": [
 		"series"
@@ -21,32 +21,46 @@ const manifest = {
 	"name": "simpsonizando",
 	"description": "Simpsons Latino"
 }
+
 const builder = new addonBuilder(manifest)
 
-builder.defineCatalogHandler(({type, id, extra}) => {
-	console.log("request for catalogs: "+type+" "+id)
-	// Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/requests/defineCatalogHandler.md
-	return Promise.resolve({ metas: [
-		{
-			id: "tt1254207",
-			type: "movie",
-			name: "The Big Buck Bunny",
-			poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/220px-Big_buck_bunny_poster_big.jpg"
-		}
-	] })
-})
+const METAHUB_URL = "https://images.metahub.space"
 
-builder.defineMetaHandler(({type, id}) => {
-	console.log("request for meta: "+type+" "+id)
-	// Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/requests/defineMetaHandler.md
-	return Promise.resolve({ meta: null })
+const dataset = {
+    "tt0096697:1:1": { name: "Los Simpsons", type: "series", url: "http://lestraigocast.ddns.net:3000/Simpsons/s01/Los%20Simpsons%20-%20S01E01%20-%20Especial%20de%20Navidad.mp4"}, 
+}
+
+
+const generateMetaPreview = function(value, key) {
+    // To provide basic meta for our movies for the catalog
+    // we'll fetch the poster from Stremio's MetaHub
+    // see https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/responses/meta.md#meta-preview-object
+    const imdbId = key.split(":")[0]
+    return {
+        id: imdbId,
+        type: value.type,
+        name: value.name,
+        poster: METAHUB_URL+"/poster/medium/"+imdbId+"/img",
+    }
+}
+
+builder.defineCatalogHandler(function(args, cb) {
+    // filter the dataset object and only take the requested type
+    const metas = Object.entries(dataset)
+        .filter(([_, value]) => value.type === args.type)
+        .map(([key, value]) => generateMetaPreview(value, key))
+
+	console.log(metas)
+
+    return Promise.resolve({ metas: metas })
 })
 
 builder.defineStreamHandler(({type, id}) => {
-	console.log("request for streams: "+type+" "+id)
-	// Docs: https://github.com/Stremio/stremio-addon-sdk/blob/master/docs/api/requests/defineStreamHandler.md
-	// return no streams
-	return Promise.resolve({ streams: [] })
+    if (dataset[args.id]) {
+        return Promise.resolve({ streams: [dataset[args.id]] });
+    } else {
+        return Promise.resolve({ streams: [] });
+    }
 })
 
 module.exports = builder.getInterface()
